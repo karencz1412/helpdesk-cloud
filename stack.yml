@@ -1,0 +1,103 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-helpdesk}
+      POSTGRES_USER: ${POSTGRES_USER:-helpdesk_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-helpdesk_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - helpdesk_overlay
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  backend:
+    image: ${DOCKERHUB_USERNAME:-tu_usuario}/helpdesk-backend:latest
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-helpdesk_user}:${POSTGRES_PASSWORD:-helpdesk_password}@postgres:5432/${POSTGRES_DB:-helpdesk}
+      JWT_SECRET: ${JWT_SECRET:-cambiar_este_secreto}
+      JWT_EXPIRES_IN: 8h
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+    networks:
+      - helpdesk_overlay
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME:-tu_usuario}/helpdesk-frontend:latest
+    networks:
+      - helpdesk_overlay
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    configs:
+      - source: nginx_default
+        target: /etc/nginx/conf.d/default.conf
+    networks:
+      - helpdesk_overlay
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    ports:
+      - "9090:9090"
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - helpdesk_overlay
+    deploy:
+      replicas: 1
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin123}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - helpdesk_overlay
+    deploy:
+      replicas: 1
+
+configs:
+  nginx_default:
+    file: ./nginx/default.conf
+  prometheus_config:
+    file: ./monitoring/prometheus/prometheus.yml
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  helpdesk_overlay:
+    driver: overlay
