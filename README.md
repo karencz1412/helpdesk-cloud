@@ -34,16 +34,10 @@ helpdesk-cloud/
 ├── .env.example
 └── README.md
 ```
+## Usuarios de prueba
 
-## Usuarios demo
-
-Al iniciar la base de datos se crean estos usuarios:
-
-| Rol | Email | Contraseña |
-|---|---|---|
-| Administrador | admin@helpdesk.com | Admin12345 |
-| Técnico | tecnico@helpdesk.com | Tecnico12345 |
-| Usuario | usuario@helpdesk.com | Usuario12345 |
+El sistema crea usuarios iniciales para fines de demostración.  
+Las credenciales pueden consultarse o modificarse desde el archivo de inicialización de la base de datos.
 
 ## Ejecutar localmente con Docker Compose
 
