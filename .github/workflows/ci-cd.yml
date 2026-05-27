@@ -8,9 +8,16 @@ on:
     branches:
       - main
 
+env:
+  DOCKER_IMAGE_FRONTEND: karencc/helpdesk-cloud-frontend:v1
+  AZURE_RESOURCE_GROUP: rg-helpdesk-cloud
+  AZURE_CONTAINER_NAME: helpdesk-frontend
+  AZURE_DNS_LABEL: helpdesk-frontend-karencz1412
+  AZURE_LOCATION: mexicocentral
+
 jobs:
-  test-build:
-    name: Test and Build Project
+  test-build-push-deploy:
+    name: Test, Build, Push and Deploy Frontend
     runs-on: ubuntu-latest
 
     steps:
@@ -38,11 +45,50 @@ jobs:
         working-directory: frontend
         run: npm test
 
-      - name: Construir imagen Docker backend
-        run: docker build -t helpdesk-cloud-backend ./backend
-
       - name: Construir imagen Docker frontend
-        run: docker build -t helpdesk-cloud-frontend ./frontend
+        run: docker build -t $DOCKER_IMAGE_FRONTEND ./frontend
 
-      - name: Validación completada
-        run: echo "Pipeline CI/CD validado correctamente"
+      - name: Iniciar sesión en Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Publicar imagen frontend en Docker Hub
+        if: github.event_name == 'push'
+        run: docker push $DOCKER_IMAGE_FRONTEND
+
+      - name: Iniciar sesión en Azure
+        if: github.event_name == 'push'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Actualizar contenedor en Azure Container Instances
+        if: github.event_name == 'push'
+        run: |
+          az container delete \
+            --resource-group $AZURE_RESOURCE_GROUP \
+            --name $AZURE_CONTAINER_NAME \
+            --yes || true
+
+          az container create \
+            --resource-group $AZURE_RESOURCE_GROUP \
+            --name $AZURE_CONTAINER_NAME \
+            --image $DOCKER_IMAGE_FRONTEND \
+            --dns-name-label $AZURE_DNS_LABEL \
+            --ports 80 \
+            --location $AZURE_LOCATION \
+            --os-type Linux \
+            --cpu 1 \
+            --memory 1
+
+      - name: Mostrar URL pública
+        if: github.event_name == 'push'
+        run: |
+          az container show \
+            --resource-group $AZURE_RESOURCE_GROUP \
+            --name $AZURE_CONTAINER_NAME \
+            --query "{Estado:instanceView.state, FQDN:ipAddress.fqdn, IP:ipAddress.ip}" \
+            --output table
