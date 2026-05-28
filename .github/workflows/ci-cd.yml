@@ -48,6 +48,14 @@ jobs:
       - name: Construir imagen Docker frontend
         run: docker build -t $DOCKER_IMAGE_FRONTEND ./frontend
 
+              - name: Escanear imagen Docker con Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_IMAGE_FRONTEND }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
       - name: Iniciar sesión en Docker Hub
         if: github.event_name == 'push'
         uses: docker/login-action@v3
